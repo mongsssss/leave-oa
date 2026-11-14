@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.LeaveRequestMapper">
+    
+    <resultMap type="LeaveRequest" id="LeaveRequestResult">
+        <result property="id"    column="id"    />
+        <result property="userId"    column="user_id"    />
+        <result property="deptId"    column="dept_id"    />
+        <result property="leaveType"    column="leave_type"    />
+        <result property="startTime"    column="start_time"    />
+        <result property="endTime"    column="end_time"    />
+        <result property="duration"    column="duration"    />
+        <result property="reason"    column="reason"    />
+        <result property="attachmentUrl"    column="attachment_url"    />
+        <result property="status"    column="status"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="userName"    column="user_name"    />
+        <result property="deptName"    column="dept_name"    />
+        <result property="startHalf"    column="start_half"    />
+        <result property="endHalf"    column="end_half"    />
+    </resultMap>
+
+    <!-- ① 新增一个 resultMap：继承基础映射，加审批记录集合 -->
+    <resultMap type="LeaveRequestVo" id="LeaveRequestVoResult" extends="LeaveRequestResult">
+        <collection property="approvalRecordsList" ofType="ApprovalRecord">
+            <id     property="id"           column="record_id"     />
+            <result property="leaveId"      column="leave_id"      />
+            <result property="approverId"   column="approver_id"   />
+            <result property="action"       column="action"        />
+            <result property="fromStatus"   column="from_status"   />
+            <result property="toStatus"     column="to_status"     />
+            <result property="comment"      column="comment"       />
+            <result property="createTime"   column="record_time"   />
+            <result property="approverName" column="approver_name" />
+        </collection>
+    </resultMap>
+
+    <sql id="selectLeaveRequestVo">
+        select l.id, l.user_id, l.dept_id, l.leave_type, l.start_time, l.end_time,l.duration, l.reason,
+               l.attachment_url, l.status, l.create_time, l.update_time,l.start_half,l.end_half,
+               u.nick_name as user_name, d.dept_name
+        from leave_request l
+            left join sys_user u on u.user_id = l.user_id
+            left join sys_dept d on d.dept_id = l.dept_id
+    </sql>
+
+    <select id="selectLeaveRequestList" parameterType="LeaveRequest" resultMap="LeaveRequestResult">
+        <include refid="selectLeaveRequestVo"/>
+        <where>  
+            <if test="userId != null "> and l.user_id = #{userId}</if>
+            <if test="deptId != null "> and l.dept_id = #{deptId}</if>
+            <if test="leaveType != null  and leaveType != ''"> and l.leave_type = #{leaveType}</if>
+            <if test="startTime != null "> and l.start_time >= #{startTime}</if>
+            <if test="endTime != null "> and l.end_time &lt; date_add(#{endTime},interval 1 day)</if>
+            <if test="duration != null "> and l.duration = #{duration}</if>
+            <if test="reason != null  and reason != ''"> and l.reason = #{reason}</if>
+            <if test="attachmentUrl != null  and attachmentUrl != ''"> and l.attachment_url = #{attachmentUrl}</if>
+            <if test="status != null  and status != ''"> and l.status = #{status}</if>
+            ${params.dataScope}
+        </where>
+        order by l.create_time desc, l.id desc
+    </select>
+    
+    <select id="selectLeaveRequestById" parameterType="Long" resultMap="LeaveRequestVoResult">
+        select l.id, l.user_id, l.dept_id, l.leave_type, l.start_time, l.end_time,l.duration, l.reason,
+               l.attachment_url, l.status, l.create_time, l.update_time,l.start_half,l.end_half,
+        u.nick_name   as user_name,
+        d.dept_name,
+        su.nick_name  as approver_name,
+        a.id          as record_id,
+        a.leave_id    as leave_id,
+        a.approver_id as approver_id,
+        a.action      as action,
+        a.from_status as from_status,
+        a.to_status   as to_status,
+        a.comment     as comment,
+        a.create_time as record_time
+        from leave_request l
+        left join sys_user u       on u.user_id   = l.user_id
+        left join sys_dept d       on d.dept_id   = l.dept_id
+        left join approval_record a on a.leave_id = l.id
+        left join sys_user su      on su.user_id  = a.approver_id
+        <where>
+            l.id = #{id}
+        </where>
+        order by a.create_time asc, a.id asc
+    </select>
+    <select id="selectMyLeaveRequestList" resultMap="LeaveRequestResult">
+        <include refid="selectLeaveRequestVo"></include>
+        <where>
+        <if test="userId != null "> and l.user_id = #{userId}</if>
+        <if test="leaveType != null  and leaveType != ''"> and l.leave_type = #{leaveType}</if>
+        <if test="startTime != null "> and l.start_time >= #{startTime}</if>
+        <if test="endTime != null "> and l.end_time &lt; date_add(#{endTime},interval 1 day)</if>
+        <if test="status != null  and status != ''"> and l.status = #{status}</if>
+        </where>
+        order by l.create_time desc, l.id desc
+    </select>
+    <select id="selectPendingApprovalList" resultMap="LeaveRequestResult">
+        <include refid="selectLeaveRequestVo"></include>
+        <where>
+            <choose>
+                <when test="params.viewType == 'admin'">
+                    and l.status in('PENDING','MANAGER_APPROVED')
+                </when>
+                <when test="params.viewType == 'both'">
+                    and ((l.status = 'PENDING' and l.dept_id = #{deptId})
+                    or (l.status = 'MANAGER_APPROVED'))
+                </when>
+                <when test="params.viewType == 'manager'">
+                    and l.status = 'PENDING' and l.dept_id = #{deptId}
+                </when>
+                <when test="params.viewType == 'director'">
+                    and l.status = 'MANAGER_APPROVED'
+                </when>
+                <otherwise>
+                    and 1 = 0
+                </otherwise>
+            </choose>
+            and l.user_id != #{params.currentUserId}
+            <if test="leaveType != null  and leaveType != ''"> and l.leave_type = #{leaveType}</if>
+            <if test="startTime != null "> and l.start_time >= #{startTime}</if>
+            <if test="endTime != null "> and l.end_time &lt; date_add(#{endTime},interval 1 day)</if>
+        </where>
+        order by l.create_time desc, l.id desc
+    </select>
+    <select id="countOverlapLeave" parameterType="LeaveRequest" resultType="int">
+        select count(*) from leave_request
+        where user_id = #{userId}
+        and status in ('PENDING','MANAGER_APPROVED','APPROVED')
+        and (start_time,start_half) &lt;= (#{endTime},#{endHalf})
+        and (end_time,end_half) &gt;= (#{startTime},#{startHalf})
+    </select>
+
+    <insert id="insertLeaveRequest" parameterType="LeaveRequest" useGeneratedKeys="true" keyProperty="id">
+        insert into leave_request
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="userId != null">user_id,</if>
+            <if test="deptId != null">dept_id,</if>
+            <if test="leaveType != null and leaveType != ''">leave_type,</if>
+            <if test="startTime != null">start_time,</if>
+            <if test="endTime != null">end_time,</if>
+            <if test="duration != null">duration,</if>
+            <if test="reason != null and reason != ''">reason,</if>
+            <if test="attachmentUrl != null">attachment_url,</if>
+            <if test="status != null and status != ''">status,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="startHalf != null and startHalf != ''">start_half,</if>
+            <if test="endHalf != null and endHalf != ''">end_half,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="userId != null">#{userId},</if>
+            <if test="deptId != null">#{deptId},</if>
+            <if test="leaveType != null and leaveType != ''">#{leaveType},</if>
+            <if test="startTime != null">#{startTime},</if>
+            <if test="endTime != null">#{endTime},</if>
+            <if test="duration != null">#{duration},</if>
+            <if test="reason != null and reason != ''">#{reason},</if>
+            <if test="attachmentUrl != null">#{attachmentUrl},</if>
+            <if test="status != null and status != ''">#{status},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="startHalf != null and startHalf != ''">#{startHalf},</if>
+            <if test="endHalf != null and endHalf != ''">#{endHalf},</if>
+         </trim>
+    </insert>
+
+    <update id="updateLeaveRequest" parameterType="LeaveRequest">
+        update leave_request
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="userId != null">user_id = #{userId},</if>
+            <if test="deptId != null">dept_id = #{deptId},</if>
+            <if test="leaveType != null and leaveType != ''">leave_type = #{leaveType},</if>
+            <if test="startTime != null">start_time = #{startTime},</if>
+            <if test="endTime != null">end_time = #{endTime},</if>
+            <if test="duration != null">duration = #{duration},</if>
+            <if test="reason != null and reason != ''">reason = #{reason},</if>
+            <if test="attachmentUrl != null">attachment_url = #{attachmentUrl},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <update id="updateStatusById">
+        update leave_request set status = #{status},update_time = #{nowDate} where id = #{id} and status = #{oldStatus}
+    </update>
+
+    <delete id="deleteLeaveRequestById" parameterType="Long">
+        delete from leave_request where id = #{id}
+    </delete>
+
+    <delete id="deleteLeaveRequestByIds" parameterType="String">
+        delete from leave_request where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.ApprovalRecordMapper">
+    
+    <resultMap type="ApprovalRecord" id="ApprovalRecordResult">
+        <result property="id"    column="id"    />
+        <result property="leaveId"    column="leave_id"    />
+        <result property="approverId"    column="approver_id"    />
+        <result property="action"    column="action"    />
+        <result property="fromStatus"    column="from_status"    />
+        <result property="toStatus"    column="to_status"    />
+        <result property="comment"    column="comment"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="approverName"    column="user_name"   />
+    </resultMap>
+
+    <sql id="selectApprovalRecordVo">
+        select a.id, a.leave_id, a.approver_id, a.action, a.from_status, a.to_status, a.comment, a.create_time
+        , u.nick_name as user_name
+        from approval_record a left join sys_user u on a.approver_id = u.user_id
+    </sql>
+
+    <select id="selectApprovalRecordList" parameterType="ApprovalRecord" resultMap="ApprovalRecordResult">
+        <include refid="selectApprovalRecordVo"/>
+        <where>  
+            <if test="leaveId != null "> and a.leave_id = #{leaveId}</if>
+            <if test="approverId != null "> and a.approver_id = #{approverId}</if>
+            <if test="action != null  and action != ''"> and a.action = #{action}</if>
+            <if test="fromStatus != null  and fromStatus != ''"> and a.from_status = #{fromStatus}</if>
+            <if test="toStatus != null  and toStatus != ''"> and a.to_status = #{toStatus}</if>
+            <if test="comment != null  and comment != ''"> and a.comment = #{comment}</if>
+            <if test="params.approvalOnly != null">and a.action in ('APPROVE','REJECT')</if>
+        </where>
+        order by a.create_time desc
+    </select>
+    
+    <select id="selectApprovalRecordById" parameterType="Long" resultMap="ApprovalRecordResult">
+        <include refid="selectApprovalRecordVo"/>
+        where a.id = #{id}
+    </select>
+
+    <select id="countByLeaveAndApprover" resultType="int">
+        select count(*) from approval_record
+        where leave_id = #{leaveId} and approver_id = #{approverId}
+    </select>
+
+    <insert id="insertApprovalRecord" parameterType="ApprovalRecord" useGeneratedKeys="true" keyProperty="id">
+        insert into approval_record
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="leaveId != null">leave_id,</if>
+            <if test="approverId != null">approver_id,</if>
+            <if test="action != null and action != ''">action,</if>
+            <if test="fromStatus != null and fromStatus != ''">from_status,</if>
+            <if test="toStatus != null and toStatus != ''">to_status,</if>
+            <if test="comment != null">comment,</if>
+            <if test="createTime != null">create_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="leaveId != null">#{leaveId},</if>
+            <if test="approverId != null">#{approverId},</if>
+            <if test="action != null and action != ''">#{action},</if>
+            <if test="fromStatus != null and fromStatus != ''">#{fromStatus},</if>
+            <if test="toStatus != null and toStatus != ''">#{toStatus},</if>
+            <if test="comment != null">#{comment},</if>
+            <if test="createTime != null">#{createTime},</if>
+         </trim>
+    </insert>
+
+    <update id="updateApprovalRecord" parameterType="ApprovalRecord">
+        update approval_record
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="leaveId != null">leave_id = #{leaveId},</if>
+            <if test="approverId != null">approver_id = #{approverId},</if>
+            <if test="action != null and action != ''">action = #{action},</if>
+            <if test="fromStatus != null and fromStatus != ''">from_status = #{fromStatus},</if>
+            <if test="toStatus != null and toStatus != ''">to_status = #{toStatus},</if>
+            <if test="comment != null">comment = #{comment},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteApprovalRecordById" parameterType="Long">
+        delete from approval_record where id = #{id}
+    </delete>
+
+    <delete id="deleteApprovalRecordByIds" parameterType="String">
+        delete from approval_record where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>
